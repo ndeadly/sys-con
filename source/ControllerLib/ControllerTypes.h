@@ -1,5 +1,10 @@
 #pragma once
 
+struct HardwareId {
+    uint16_t vendor_id;
+    uint16_t product_id;
+};
+
 enum ControllerType : uint8_t
 {
     CONTROLLER_UNDEFINED,
