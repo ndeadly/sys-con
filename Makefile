@@ -1,11 +1,16 @@
 .PHONY: all build clean mrproper
 
+PROJECT_NAME	:=  sys-con
 SOURCE_DIR		:=	source
 OUT_DIR			:=	out
 COMMON_DIR		:=	common
+GIT_BRANCH		:= $(shell git symbolic-ref --short HEAD | sed s/[^a-zA-Z0-9_-]/_/g)
+GIT_HASH 		:= $(shell git rev-parse --short HEAD)
+GIT_TAG 		:= $(shell git describe --tags `git rev-list --tags --max-count=1`)
+BUILD_VERSION	:= $(GIT_TAG:v%=%)-$(GIT_BRANCH)-$(GIT_HASH)
 
 all: build
-	rm -rf $(OUT_DIR)
+	rm -rf $(OUT_DIR)/atmosphere $(OUT_DIR)/config $(OUT_DIR)/switch
 	mkdir -p $(OUT_DIR)/atmosphere/contents/690000000000000D/flags
 	mkdir -p $(OUT_DIR)/config/sys-con
 	mkdir -p $(OUT_DIR)/switch/
@@ -18,9 +23,13 @@ all: build
 build:
 	$(MAKE) -C $(SOURCE_DIR)
 
+dist: all
+	cd $(OUT_DIR); zip -r $(PROJECT_NAME)-$(BUILD_VERSION).zip ./*; cd ../;
+
+
 clean:
 	$(MAKE) -C $(SOURCE_DIR) clean
-	rm -rf $(OUT_DIR)
+	rm -rf $(OUT_DIR)/atmosphere $(OUT_DIR)/config $(OUT_DIR)/switch
 	
 mrproper:
 	$(MAKE) -C $(SOURCE_DIR) mrproper

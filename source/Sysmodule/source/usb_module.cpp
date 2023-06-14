@@ -51,20 +51,43 @@ namespace syscon::usb
             {0x1c1a, 0x0100},   // datel Arcade Stick
             {0x0079, 0x181a},   // venom
             {0x1532, 0x0402},   // Razer Panthera
+            {0x0f0d, 0x0085},   // Hori Fighting Commander v4
         };
 
+        // hori fighting command in pc mode (0x0f0d, 0x0086)
+
+        // got many from real hardware. And a lot from here:
+        // https://github.com/Raphfriend/USB2DB15/blob/master/RFUSB_to_DB15/drivers.h#L39
         HardwareId ps4_hardware_ids[] = 
         {
             {0x054c, 0x05c4},   // DS4 v1
             {0x054c, 0x09cc},   // DS4 v2
-            {0x0c12, 0x0c30},   // Zeroplus
-            {0x0c12, 0x0ef1},   // Zeroplus
-            {0x0C12, 0x0ef7},   // 
-            {0x0C12, 0x0ef8},   // brooks Fighting Board
-            {0x0f0d, 0x0087},   // hori mini Arcade Stick
-            {0x1f4f, 0x1002},   // Xrd PS4 pad
-            {0x0079, 0x181b},   // venom
+            {0x054c, 0x0ba0},   // PS4 wireless Adapter
+            {0x0c12, 0x0c30},   // Brooks Universal Fighting Board (PS4 mode)
+            {0x0c12, 0x0ef1},   // Brooks PS2 -> PS4 Adapter
+            {0x0c12, 0x1cf2},   // Brooks PS3 -> PS4 Adapter
+            {0x0c12, 0x0e31},   // Brooks PS4 Audio Board
+            {0x0c12, 0x0ef7},   // Brooks tiny square PS4 Board
+            {0x0c12, 0x0ef8},   // Brooks Fighting Board
+            {0x0f0d, 0x0087},   // Hori Mini Arcade Stick
+            {0x0f0d, 0x0084},   // Hori Fighting Commander v4
+            {0x0f0d, 0x00ae},   // Hori RAP Pro N Hayabusa
+            {0x0f0d, 0x008a},   // HORI RAP V Hayabusa
+            {0x0f0d, 0x00ee},   // HORI ワイヤードコントローラライト for PS4-102
+            {0x0f0d, 0x006f},   // HORI RAP Pro VLX
+            {0x1f4f, 0x1002},   // Xrd PS4 Pad
+            {0x0079, 0x181b},   // Venom Arcade Stick
             {0x1532, 0x0401},   // Razer Panthera
+            {0x1532, 0x1008},   // Razer Panthera EVO
+            {0x1532, 0x1004},   // Razer Raiju Ultimate
+            {0x2c22, 0x2000},   // Qanba Drone
+            {0x2c22, 0x2200},   // Qanba Crystal
+            {0x2c22, 0x2300},   // Qanba Obsidian
+            {0x0738, 0x8180},   // Mad Catz Fight Stick Alpha
+            {0x0738, 0x8481},   // Mad Catz SFV Arcade FightStick TE2+
+            {0x0738, 0x8384},   // Mad Catz SFV Arcade FightStick TES+
+            {0x0738, 0x8250},   // Mad Catz FightPad PRO PS4
+            {0x146b, 0x0d09},   // Nacon Daija
         };
 
         ControllerType IdentifyControllerType(const UsbHsInterface *iface) {
