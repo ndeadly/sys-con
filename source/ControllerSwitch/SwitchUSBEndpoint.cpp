@@ -12,7 +12,7 @@ SwitchUSBEndpoint::~SwitchUSBEndpoint()
 {
     if (m_buffer != nullptr)
     {
-        free(m_buffer);
+        ::operator delete[](m_buffer, std::align_val_t(0x1000));
         m_buffer = nullptr;
     }
 }
@@ -24,10 +24,12 @@ ams::Result SwitchUSBEndpoint::Open(int maxPacketSize)
     R_TRY(usbHsIfOpenUsbEp(m_ifSession, &m_epSession, 1, maxPacketSize, m_descriptor));
 
     if (m_buffer != nullptr)
-        free(m_buffer);
-    m_buffer = memalign(0x1000, maxPacketSize);
+        ::operator delete[](m_buffer, std::align_val_t(0x1000));
+
+    m_buffer = new (std::align_val_t(0x1000)) u8[maxPacketSize];
+
     if (m_buffer == nullptr)
-        return -1;
+        R_RETURN(-1);
 
     R_SUCCEED();
 }
@@ -40,7 +42,8 @@ void SwitchUSBEndpoint::Close()
 ams::Result SwitchUSBEndpoint::Write(const void *inBuffer, size_t bufferSize)
 {
     if (m_buffer == nullptr)
-        return -1;
+        R_RETURN(-1);
+
     u32 transferredSize = 0;
 
     memcpy(m_buffer, inBuffer, bufferSize);
@@ -55,7 +58,7 @@ ams::Result SwitchUSBEndpoint::Write(const void *inBuffer, size_t bufferSize)
 ams::Result SwitchUSBEndpoint::Read(void *outBuffer, size_t bufferSize)
 {
     if (m_buffer == nullptr)
-        return -1;
+        R_RETURN(-1);
 
     u32 transferredSize;
 

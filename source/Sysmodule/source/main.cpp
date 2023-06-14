@@ -163,9 +163,6 @@ void operator delete[](void *p, size_t size)
 
 void *operator new(size_t size, std::align_val_t align)
 {
-    // AMS_UNUSED(align);
-    // return ams::Allocate(size);
-
     return ams::AllocateWithAlign(size, static_cast<size_t>(align));
 }
 

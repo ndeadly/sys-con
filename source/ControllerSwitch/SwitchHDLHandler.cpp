@@ -20,7 +20,7 @@ ams::Result SwitchHDLHandler::Initialize()
     R_TRY(m_controller->Initialize());
 
     if (DoesControllerSupport(m_controller->GetType(), SUPPORTS_NOTHING))
-        return 0;
+        R_SUCCEED();
 
     R_TRY(InitHdlState());
 
@@ -31,7 +31,7 @@ ams::Result SwitchHDLHandler::Initialize()
 
     R_TRY(InitInputThread());
 
-    return 0;
+    R_SUCCEED();
 }
 
 void SwitchHDLHandler::Exit()
@@ -71,29 +71,28 @@ ams::Result SwitchHDLHandler::InitHdlState()
     m_hdlState.analog_stick_r.y = -0x5678;
 
     if (m_controller->IsControllerActive())
-        return hiddbgAttachHdlsVirtualDevice(&m_hdlHandle, &m_deviceInfo);
+        R_TRY(hiddbgAttachHdlsVirtualDevice(&m_hdlHandle, &m_deviceInfo));
 
-    return 0;
+    R_SUCCEED();
 }
 
 ams::Result SwitchHDLHandler::ExitHdlState()
 {
-    return hiddbgDetachHdlsVirtualDevice(m_hdlHandle);
+    R_RETURN(hiddbgDetachHdlsVirtualDevice(m_hdlHandle));
 }
 
 // Sets the state of the class's HDL controller to the state stored in class's hdl.state
 ams::Result SwitchHDLHandler::UpdateHdlState()
 {
-    // Checks if the virtual device was erased, in which case re-attach the device
-    bool isAttached;
-
-    if (R_SUCCEEDED(hiddbgIsHdlsVirtualDeviceAttached(GetHdlsSessionId(), m_hdlHandle, &isAttached)))
+    Result rc = hiddbgSetHdlsState(m_hdlHandle, &m_hdlState);
+    if (rc == 0x1c24ca)
     {
-        if (!isAttached)
-            hiddbgAttachHdlsVirtualDevice(&m_hdlHandle, &m_deviceInfo);
+        // Re-attach virtual gamepad and set state
+        R_TRY(hiddbgAttachHdlsVirtualDevice(&m_hdlHandle, &m_deviceInfo));
+        R_TRY(hiddbgSetHdlsState(m_hdlHandle, &m_hdlState));
     }
 
-    return hiddbgSetHdlsState(m_hdlHandle, &m_hdlState);
+    R_SUCCEED();
 }
 
 void SwitchHDLHandler::FillHdlState(const NormalizedButtonData &data)

@@ -39,6 +39,7 @@ ams::Result SwitchUSBInterface::Open()
 
     R_SUCCEED();
 }
+
 void SwitchUSBInterface::Close()
 {
     for (auto &&endpoint : m_inEndpoints)
@@ -60,8 +61,8 @@ void SwitchUSBInterface::Close()
 
 ams::Result SwitchUSBInterface::ControlTransfer(u8 bmRequestType, u8 bmRequest, u16 wValue, u16 wIndex, u16 wLength, void *buffer)
 {
-    void *temp_buffer = memalign(0x1000, wLength);
-    ON_SCOPE_EXIT { free(temp_buffer); };
+    void *temp_buffer = new (std::align_val_t(0x1000)) u8[wLength];
+    ON_SCOPE_EXIT { ::operator delete[](temp_buffer, std::align_val_t(0x1000)); };
 
     if (temp_buffer == nullptr)
         return -1;
@@ -79,8 +80,8 @@ ams::Result SwitchUSBInterface::ControlTransfer(u8 bmRequestType, u8 bmRequest, 
 
 ams::Result SwitchUSBInterface::ControlTransfer(u8 bmRequestType, u8 bmRequest, u16 wValue, u16 wIndex, u16 wLength, const void *buffer)
 {
-    void *temp_buffer = memalign(0x1000, wLength);
-    ON_SCOPE_EXIT { free(temp_buffer); };
+    void *temp_buffer = new (std::align_val_t(0x1000)) u8[wLength];
+    ON_SCOPE_EXIT { ::operator delete[](temp_buffer, std::align_val_t(0x1000)); };
 
     if (temp_buffer == nullptr)
         return -1;
