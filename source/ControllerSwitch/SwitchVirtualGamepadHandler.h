@@ -1,9 +1,9 @@
 #pragma once
-#include "switch.h"
+#include <switch.h>
 #include "IController.h"
 #include <stratosphere.hpp>
 
-//This class is a base class for SwitchHDLHandler and SwitchAbstractedPaadHandler.
+// This class is a base class for SwitchHDLHandler and SwitchAbstractedPaadHandler.
 class SwitchVirtualGamepadHandler
 {
 protected:
@@ -26,31 +26,31 @@ public:
     SwitchVirtualGamepadHandler(std::unique_ptr<IController> &&controller);
     virtual ~SwitchVirtualGamepadHandler();
 
-    //Override this if you want a custom init procedure
-    virtual Result Initialize();
-    //Override this if you want a custom exit procedure
+    // Override this if you want a custom init procedure
+    virtual ams::Result Initialize();
+    // Override this if you want a custom exit procedure
     virtual void Exit();
 
-    //Separately init the input-reading thread
-    Result InitInputThread();
-    //Separately close the input-reading thread
+    // Separately init the input-reading thread
+    ams::Result InitInputThread();
+    // Separately close the input-reading thread
     void ExitInputThread();
 
-    //Separately init the rumble sending thread
-    Result InitOutputThread();
-    //Separately close the rumble sending thread
+    // Separately init the rumble sending thread
+    ams::Result InitOutputThread();
+    // Separately close the rumble sending thread
     void ExitOutputThread();
 
-    //The function to call indefinitely by the input thread
+    // The function to call indefinitely by the input thread
     virtual void UpdateInput() = 0;
-    //The function to call indefinitely by the output thread
+    // The function to call indefinitely by the output thread
     virtual void UpdateOutput() = 0;
 
     void ConvertAxisToSwitchAxis(float x, float y, float deadzone, s32 *x_out, s32 *y_out);
 
-    Result SetControllerVibration(float strong_mag, float weak_mag);
+    ams::Result SetControllerVibration(float strong_mag, float weak_mag);
 
-    //Get the raw controller pointer
+    // Get the raw controller pointer
     inline IController *GetController() { return m_controller.get(); }
     inline HidVibrationDeviceHandle *GetVibrationHandle() { return &m_vibrationDeviceHandle; }
 };

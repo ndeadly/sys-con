@@ -1,13 +1,14 @@
 #pragma once
+#include <stratosphere.hpp>
 
 namespace syscon::usb
 {
-    void Initialize();
+    ams::Result Initialize();
     void Exit();
 
-    Result Enable();
+    ams::Result Enable();
     void Disable();
 
-    Result CreateUsbEvents();
+    ams::Result CreateUsbEvents();
     void DestroyUsbEvents();
 } // namespace syscon::usb

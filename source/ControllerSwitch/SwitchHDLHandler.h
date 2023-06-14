@@ -1,6 +1,6 @@
 #pragma once
 
-#include "switch.h"
+#include <switch.h>
 #include "IController.h"
 #include "SwitchVirtualGamepadHandler.h"
 
@@ -18,7 +18,7 @@ public:
     ~SwitchHDLHandler();
 
     //Initialize controller handler, HDL state
-    virtual Result Initialize() override;
+    virtual ams::Result Initialize() override;
     virtual void Exit() override;
 
     //This will be called periodically by the input threads
@@ -27,13 +27,13 @@ public:
     virtual void UpdateOutput() override;
 
     //Separately init and close the HDL state
-    Result InitHdlState();
-    Result ExitHdlState();
+    ams::Result InitHdlState();
+    ams::Result ExitHdlState();
 
     //Fills out the HDL state with the specified button data
     void FillHdlState(const NormalizedButtonData &data);
     //Passes the HDL state to HID so that it could register the inputs
-    Result UpdateHdlState();
+    ams::Result UpdateHdlState();
 
     static HiddbgHdlsSessionId &GetHdlsSessionId();
 };

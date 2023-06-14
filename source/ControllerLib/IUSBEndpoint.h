@@ -1,5 +1,5 @@
 #pragma once
-#include "Result.h"
+#include <stratosphere.hpp>
 #include <cstddef>
 
 class IUSBEndpoint
@@ -23,18 +23,18 @@ public:
 
     virtual ~IUSBEndpoint() = default;
 
-    //Open and close the endpoint. if maxPacketSize is not set, it uses wMaxPacketSize from the descriptor.
-    virtual Result Open(int maxPacketSize = 0) = 0;
+    // Open and close the endpoint. if maxPacketSize is not set, it uses wMaxPacketSize from the descriptor.
+    virtual ams::Result Open(int maxPacketSize = 0) = 0;
     virtual void Close() = 0;
 
-    //This will read from the inBuffer pointer for the specified size and write it to the endpoint.
-    virtual Result Write(const void *inBuffer, size_t bufferSize) = 0;
+    // This will read from the inBuffer pointer for the specified size and write it to the endpoint.
+    virtual ams::Result Write(const void *inBuffer, size_t bufferSize) = 0;
 
-    //This will read from the endpoint and put the data in the outBuffer pointer for the specified size.
-    virtual Result Read(void *outBuffer, size_t bufferSize) = 0;
+    // This will read from the endpoint and put the data in the outBuffer pointer for the specified size.
+    virtual ams::Result Read(void *outBuffer, size_t bufferSize) = 0;
 
-    //Get endpoint's direction. (IN or OUT)
+    // Get endpoint's direction. (IN or OUT)
     virtual IUSBEndpoint::Direction GetDirection() = 0;
-    //Get the endpoint descriptor
+    // Get the endpoint descriptor
     virtual EndpointDescriptor *GetDescriptor() = 0;
 };

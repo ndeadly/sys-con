@@ -1,5 +1,6 @@
 #pragma once
 #include "ControllerTypes.h"
+#include <stratosphere.hpp>
 
 #define CONFIG_PATH "/config/sys-con/"
 
@@ -22,9 +23,9 @@ namespace syscon::config
     void LoadAllConfigs();
     bool CheckForFileChanges();
 
-    Result Initialize();
+    ams::Result Initialize();
     void Exit();
 
-    Result Enable();
+    ams::Result Enable();
     void Disable();
 }; // namespace syscon::config

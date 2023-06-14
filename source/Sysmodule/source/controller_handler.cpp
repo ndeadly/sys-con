@@ -1,4 +1,4 @@
-#include "switch.h"
+#include <switch.h>
 #include "controller_handler.h"
 #include "SwitchHDLHandler.h"
 #include "SwitchAbstractedPadHandler.h"
@@ -22,7 +22,7 @@ namespace syscon::controllers
         return controllerHandlers.size() >= MaxControllerHandlersSize;
     }
 
-    Result Insert(std::unique_ptr<IController> &&controllerPtr)
+    ams::Result Insert(std::unique_ptr<IController> &&controllerPtr)
     {
         std::unique_ptr<SwitchVirtualGamepadHandler> switchHandler;
         if (UseAbstractedPad)
@@ -36,14 +36,12 @@ namespace syscon::controllers
             WriteToLog("Inserting controller as HDLs");
         }
 
-        Result rc = switchHandler->Initialize();
-        if (R_SUCCEEDED(rc))
-        {
-            std::scoped_lock scoped_lock(controllerMutex);
-            controllerHandlers.push_back(std::move(switchHandler));
-        }
+        R_TRY(switchHandler->Initialize());
 
-        return rc;
+        std::scoped_lock scoped_lock(controllerMutex);
+        controllerHandlers.push_back(std::move(switchHandler));
+
+        R_SUCCEED();
     }
 
     std::vector<std::unique_ptr<SwitchVirtualGamepadHandler>> &Get()
@@ -55,6 +53,7 @@ namespace syscon::controllers
     {
         return controllerMutex;
     }
+
     /*
     void Remove(std::function func)
     {

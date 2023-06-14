@@ -1,4 +1,4 @@
-#include "switch.h"
+#include <switch.h>
 #include "log.h"
 #include <stratosphere.hpp>
 
@@ -10,101 +10,167 @@
 
 #define APP_VERSION "0.6.4"
 
-// libnx fake heap initialization
-extern "C"
-{
-    // We aren't an applet, so disable applet functionality.
-    u32 __nx_applet_type = AppletType_None;
-    // We are a sysmodule, so don't use more FS sessions than needed.
-    u32 __nx_fs_num_sessions = 1;
-    // We don't need to reserve memory for fsdev, so don't use it.
-    u32 __nx_fsdev_direntry_cache_size = 1;
-
-#define INNER_HEAP_SIZE 0x40'000
-    size_t nx_inner_heap_size = INNER_HEAP_SIZE;
-    char nx_inner_heap[INNER_HEAP_SIZE];
-
-    void __libnx_initheap(void)
-    {
-        // Newlib
-        extern char *fake_heap_start;
-        extern char *fake_heap_end;
-
-        fake_heap_start = nx_inner_heap;
-        fake_heap_end = nx_inner_heap + nx_inner_heap_size;
-    }
-
-    // Exception handling
-    alignas(16) u8 __nx_exception_stack[ams::os::MemoryPageSize];
-    u64 __nx_exception_stack_size = sizeof(__nx_exception_stack);
-    void __libnx_exception_handler(ThreadExceptionDump *ctx)
-    {
-        ams::CrashHandler(ctx);
-    }
-}
-
-// libstratosphere variables
 namespace ams
 {
+
     ncm::ProgramId CurrentProgramId = {0x690000000000000D};
     namespace result
     {
         bool CallFatalOnResultAssertion = true;
     }
+
+    namespace
+    {
+
+        alignas(0x40) constinit u8 g_heap_memory[256_KB];
+        constinit lmem::HeapHandle g_heap_handle;
+        constinit bool g_heap_initialized;
+        constinit os::SdkMutex g_heap_init_mutex;
+
+        lmem::HeapHandle GetHeapHandle()
+        {
+            if (AMS_UNLIKELY(!g_heap_initialized))
+            {
+                std::scoped_lock lk(g_heap_init_mutex);
+
+                if (AMS_LIKELY(!g_heap_initialized))
+                {
+                    g_heap_handle = lmem::CreateExpHeap(g_heap_memory, sizeof(g_heap_memory), lmem::CreateOption_ThreadSafe);
+                    g_heap_initialized = true;
+                }
+            }
+
+            return g_heap_handle;
+        }
+
+        void *Allocate(size_t size)
+        {
+            return lmem::AllocateFromExpHeap(GetHeapHandle(), size);
+        }
+
+        void *AllocateWithAlign(size_t sz, size_t align)
+        {
+            return lmem::AllocateFromExpHeap(GetHeapHandle(), sz, align);
+        }
+
+        void Deallocate(void *p, size_t size)
+        {
+            AMS_UNUSED(size);
+            return lmem::FreeToExpHeap(GetHeapHandle(), p);
+        }
+
+        alignas(0x1000) constinit uint8_t g_tmem_buffer[0x1000];
+
+    } // namespace
+
+    namespace init
+    {
+
+        void InitializeSystemModule()
+        {
+            R_ABORT_UNLESS(sm::Initialize());
+
+            fs::InitializeForSystem();
+            fs::SetAllocator(ams::Allocate, ams::Deallocate);
+            fs::SetEnabledAutoAbort(false);
+
+            R_ABORT_UNLESS(pmdmntInitialize());
+            R_ABORT_UNLESS(pminfoInitialize());
+            R_ABORT_UNLESS(pscmInitialize());
+            R_ABORT_UNLESS(usbHsInitialize());
+
+            R_ABORT_UNLESS(hiddbgInitialize());
+            if (hosversionAtLeast(7, 0, 0))
+                R_ABORT_UNLESS(hiddbgAttachHdlsWorkBuffer(&SwitchHDLHandler::GetHdlsSessionId(), g_tmem_buffer, sizeof(g_tmem_buffer)));
+
+            R_ABORT_UNLESS(fs::MountSdCard("sdmc"));
+        }
+
+        void FinalizeSystemModule()
+        {
+            hiddbgReleaseHdlsWorkBuffer(SwitchHDLHandler::GetHdlsSessionId());
+            hiddbgExit();
+            usbHsExit();
+            pscmExit();
+        }
+
+        void Startup()
+        { /* ... */
+        }
+
+    } // namespace init
+
+    void Main()
+    {
+        WriteToLog("\n\nNew sysmodule session started on version " APP_VERSION);
+        R_ABORT_UNLESS(syscon::config::Initialize());
+        R_ABORT_UNLESS(syscon::usb::Initialize());
+        R_ABORT_UNLESS(syscon::psc::Initialize());
+        syscon::controllers::Initialize();
+
+        while (true)
+        {
+            svcSleepThread(1e+8L);
+        }
+
+        syscon::controllers::Exit();
+        syscon::psc::Exit();
+        syscon::usb::Exit();
+        syscon::config::Exit();
+    }
+
 } // namespace ams
 
-extern "C" void __appInit(void)
+void *operator new(size_t size)
 {
-    R_ABORT_UNLESS(smInitialize());
-    // ams::sm::DoWithSession([]
-    {
-        //Initialize system firmware version
-        R_ABORT_UNLESS(setsysInitialize());
-        SetSysFirmwareVersion fw;
-        R_ABORT_UNLESS(setsysGetFirmwareVersion(&fw));
-        hosversionSet(MAKEHOSVERSION(fw.major, fw.minor, fw.micro));
-        setsysExit();
-
-        R_ABORT_UNLESS(hiddbgInitialize());
-        if (hosversionAtLeast(7, 0, 0))
-            R_ABORT_UNLESS(hiddbgAttachHdlsWorkBuffer(&SwitchHDLHandler::GetHdlsSessionId()));
-        R_ABORT_UNLESS(usbHsInitialize());
-        R_ABORT_UNLESS(pscmInitialize());
-        R_ABORT_UNLESS(fsInitialize());
-    }
-    // );
-    smExit();
-
-    R_ABORT_UNLESS(fsdevMountSdmc());
+    return ams::Allocate(size);
 }
 
-extern "C" void __appExit(void)
+void *operator new(size_t size, const std::nothrow_t &)
 {
-    pscmExit();
-    usbHsExit();
-    hiddbgReleaseHdlsWorkBuffer(SwitchHDLHandler::GetHdlsSessionId());
-    hiddbgExit();
-    fsdevUnmountAll();
-    fsExit();
+    return ams::Allocate(size);
 }
 
-using namespace syscon;
-
-int main(int argc, char *argv[])
+void operator delete(void *p)
 {
-    WriteToLog("\n\nNew sysmodule session started on version " APP_VERSION);
-    config::Initialize();
-    controllers::Initialize();
-    usb::Initialize();
-    psc::Initialize();
+    return ams::Deallocate(p, 0);
+}
 
-    while (true)
-    {
-        svcSleepThread(1e+8L);
-    }
+void operator delete(void *p, size_t size)
+{
+    return ams::Deallocate(p, size);
+}
 
-    psc::Exit();
-    usb::Exit();
-    controllers::Exit();
-    config::Exit();
+void *operator new[](size_t size)
+{
+    return ams::Allocate(size);
+}
+
+void *operator new[](size_t size, const std::nothrow_t &)
+{
+    return ams::Allocate(size);
+}
+
+void operator delete[](void *p)
+{
+    return ams::Deallocate(p, 0);
+}
+
+void operator delete[](void *p, size_t size)
+{
+    return ams::Deallocate(p, size);
+}
+
+void *operator new(size_t size, std::align_val_t align)
+{
+    // AMS_UNUSED(align);
+    // return ams::Allocate(size);
+
+    return ams::AllocateWithAlign(size, static_cast<size_t>(align));
+}
+
+void operator delete(void *p, std::align_val_t align)
+{
+    AMS_UNUSED(align);
+    return ams::Deallocate(p, 0);
 }

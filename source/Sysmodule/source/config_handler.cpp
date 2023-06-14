@@ -1,4 +1,4 @@
-#include "switch.h"
+#include <switch.h>
 #include "config_handler.h"
 #include "Controllers.h"
 #include "ControllerConfig.h"
@@ -21,7 +21,7 @@ namespace syscon::config
         Waiter filecheckTimerWaiter = waiterForUTimer(&filecheckTimer);
 
         // Thread to check for any config changes
-        void ConfigChangedCheckThreadFunc(void *arg);
+        void ConfigChangedCheckThreadFunc(void *);
 
         alignas(ams::os::ThreadStackAlignment) u8 config_thread_stack[0x2000];
         Thread g_config_changed_check_thread;
@@ -86,6 +86,9 @@ namespace syscon::config
 
         int ParseConfigLine(void *dummy, const char *section, const char *name, const char *value)
         {
+            AMS_UNUSED(dummy);
+            AMS_UNUSED(section);
+
             if (strncmp(name, "KEY_", 4) == 0)
             {
                 ControllerButton button = StringToKey(name + 4);
@@ -168,13 +171,13 @@ namespace syscon::config
             return 0;
         }
 
-        Result ReadFromConfig(const char *path)
+        ams::Result ReadFromConfig(const char *path)
         {
             tempConfig = ControllerConfig{};
-            return ini_parse(path, ParseConfigLine, NULL);
+            R_RETURN(ini_parse(path, ParseConfigLine, NULL));
         }
 
-        void ConfigChangedCheckThreadFunc(void *arg)
+        void ConfigChangedCheckThreadFunc(void *)
         {
             WriteToLog("Starting config check thread!");
             do
@@ -299,13 +302,13 @@ namespace syscon::config
         return filesChanged;
     }
 
-    Result Initialize()
+    ams::Result Initialize()
     {
         DiscardOldLogs();
         config::LoadAllConfigs();
         config::CheckForFileChanges();
         utimerCreate(&filecheckTimer, 1e+9L, TimerType_Repeating);
-        return Enable();
+        R_RETURN(Enable());
     }
 
     void Exit()
@@ -313,15 +316,17 @@ namespace syscon::config
         Disable();
     }
 
-    Result Enable()
+    ams::Result Enable()
     {
         if (filecheckTimer.started)
-            return 1;
+            R_RETURN(1);
+
         utimerStart(&filecheckTimer);
         is_config_changed_check_thread_running = true;
-        R_ABORT_UNLESS(threadCreate(&g_config_changed_check_thread, &ConfigChangedCheckThreadFunc, nullptr, config_thread_stack, sizeof(config_thread_stack), 0x3E, -2));
-        R_ABORT_UNLESS(threadStart(&g_config_changed_check_thread));
-        return 0;
+        R_TRY(threadCreate(&g_config_changed_check_thread, &ConfigChangedCheckThreadFunc, nullptr, config_thread_stack, sizeof(config_thread_stack), 0x3E, -2));
+        R_TRY(threadStart(&g_config_changed_check_thread));
+
+        R_SUCCEED();
     }
 
     void Disable()

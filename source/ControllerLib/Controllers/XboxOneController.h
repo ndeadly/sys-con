@@ -2,9 +2,9 @@
 
 #include "IController.h"
 
-//References used:
-//https://github.com/quantus/xbox-one-controller-protocol
-//https://cs.chromium.org/chromium/src/device/gamepad/xbox_controller_mac.mm
+// References used:
+// https://github.com/quantus/xbox-one-controller-protocol
+// https://cs.chromium.org/chromium/src/device/gamepad/xbox_controller_mac.mm
 
 struct XboxOneButtonData
 {
@@ -85,13 +85,13 @@ public:
     XboxOneController(std::unique_ptr<IUSBDevice> &&interface);
     virtual ~XboxOneController() override;
 
-    virtual Result Initialize() override;
+    virtual ams::Result Initialize() override;
     virtual void Exit() override;
 
-    Result OpenInterfaces();
+    ams::Result OpenInterfaces();
     void CloseInterfaces();
 
-    virtual Result GetInput() override;
+    virtual ams::Result GetInput() override;
 
     virtual NormalizedButtonData GetNormalizedButtonData() override;
 
@@ -102,9 +102,9 @@ public:
     float NormalizeTrigger(uint8_t deadzonePercent, uint16_t value);
     void NormalizeAxis(int16_t x, int16_t y, uint8_t deadzonePercent, float *x_out, float *y_out);
 
-    Result SendInitBytes();
-    Result WriteAckGuideReport(uint8_t sequence);
-    Result SetRumble(uint8_t strong_magnitude, uint8_t weak_magnitude);
+    ams::Result SendInitBytes();
+    ams::Result WriteAckGuideReport(uint8_t sequence);
+    ams::Result SetRumble(uint8_t strong_magnitude, uint8_t weak_magnitude);
 
     static void LoadConfig(const ControllerConfig *config);
     virtual ControllerConfig *GetConfig() override;

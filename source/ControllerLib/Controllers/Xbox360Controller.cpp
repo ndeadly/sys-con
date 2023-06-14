@@ -10,39 +10,31 @@ Xbox360Controller::Xbox360Controller(std::unique_ptr<IUSBDevice> &&interface)
 
 Xbox360Controller::~Xbox360Controller()
 {
-    //Exit();
+    // Exit();
 }
 
-Result Xbox360Controller::Initialize()
+ams::Result Xbox360Controller::Initialize()
 {
-    Result rc;
-
-    rc = OpenInterfaces();
-    if (R_FAILED(rc))
-        return rc;
+    R_TRY(OpenInterfaces());
 
     SetLED(XBOX360LED_TOPLEFT);
-    return rc;
+
+    R_SUCCEED();
 }
 void Xbox360Controller::Exit()
 {
     CloseInterfaces();
 }
 
-Result Xbox360Controller::OpenInterfaces()
+ams::Result Xbox360Controller::OpenInterfaces()
 {
-    Result rc;
-    rc = m_device->Open();
-    if (R_FAILED(rc))
-        return rc;
+    R_TRY(m_device->Open());
 
-    //This will open each interface and try to acquire Xbox One controller's in and out endpoints, if it hasn't already
+    // This will open each interface and try to acquire Xbox One controller's in and out endpoints, if it hasn't already
     std::vector<std::unique_ptr<IUSBInterface>> &interfaces = m_device->GetInterfaces();
     for (auto &&interface : interfaces)
     {
-        rc = interface->Open();
-        if (R_FAILED(rc))
-            return rc;
+        R_TRY(interface->Open());
 
         if (interface->GetDescriptor()->bInterfaceProtocol != 1)
             continue;
@@ -57,9 +49,7 @@ Result Xbox360Controller::OpenInterfaces()
                 IUSBEndpoint *inEndpoint = interface->GetEndpoint(IUSBEndpoint::USB_ENDPOINT_IN, i);
                 if (inEndpoint)
                 {
-                    rc = inEndpoint->Open();
-                    if (R_FAILED(rc))
-                        return 55555;
+                    R_TRY(inEndpoint->Open());
 
                     m_inPipe = inEndpoint;
                     break;
@@ -74,9 +64,7 @@ Result Xbox360Controller::OpenInterfaces()
                 IUSBEndpoint *outEndpoint = interface->GetEndpoint(IUSBEndpoint::USB_ENDPOINT_OUT, i);
                 if (outEndpoint)
                 {
-                    rc = outEndpoint->Open();
-                    if (R_FAILED(rc))
-                        return 66666;
+                    R_TRY(outEndpoint->Open());
 
                     m_outPipe = outEndpoint;
                     break;
@@ -86,46 +74,46 @@ Result Xbox360Controller::OpenInterfaces()
     }
 
     if (!m_inPipe || !m_outPipe)
-        return 369;
+        R_RETURN(369);
 
-    return rc;
+    R_SUCCEED();
 }
+
 void Xbox360Controller::CloseInterfaces()
 {
-    //m_device->Reset();
+    // m_device->Reset();
     m_device->Close();
 }
 
-Result Xbox360Controller::GetInput()
+ams::Result Xbox360Controller::GetInput()
 {
     uint8_t input_bytes[64];
 
-    Result rc = m_inPipe->Read(input_bytes, sizeof(input_bytes));
+    R_TRY(m_inPipe->Read(input_bytes, sizeof(input_bytes)));
 
     uint8_t type = input_bytes[0];
 
-    if (type == XBOX360INPUT_BUTTON) //Button data
+    if (type == XBOX360INPUT_BUTTON) // Button data
     {
         m_buttonData = *reinterpret_cast<Xbox360ButtonData *>(input_bytes);
     }
 
-    return rc;
+    R_SUCCEED();
 }
 
-Result Xbox360Controller::SendInitBytes()
+ams::Result Xbox360Controller::SendInitBytes()
 {
     uint8_t init_bytes[]{
         0x05,
         0x20, 0x00, 0x01, 0x00};
 
-    Result rc = m_outPipe->Write(init_bytes, sizeof(init_bytes));
-    return rc;
+    R_RETURN(m_outPipe->Write(init_bytes, sizeof(init_bytes)));
 }
 
 float Xbox360Controller::NormalizeTrigger(uint8_t deadzonePercent, uint8_t value)
 {
     uint16_t deadzone = (UINT8_MAX * deadzonePercent) / 100;
-    //If the given value is below the trigger zone, save the calc and return 0, otherwise adjust the value to the deadzone
+    // If the given value is below the trigger zone, save the calc and return 0, otherwise adjust the value to the deadzone
     return value < deadzone
                ? 0
                : static_cast<float>(value - deadzone) / (UINT8_MAX - deadzone);
@@ -140,8 +128,8 @@ void Xbox360Controller::NormalizeAxis(int16_t x,
     float x_val = x;
     float y_val = y;
     // Determine how far the stick is pushed.
-    //This will never exceed 32767 because if the stick is
-    //horizontally maxed in one direction, vertically it must be neutral(0) and vice versa
+    // This will never exceed 32767 because if the stick is
+    // horizontally maxed in one direction, vertically it must be neutral(0) and vice versa
     float real_magnitude = std::sqrt(x_val * x_val + y_val * y_val);
     float real_deadzone = (32767 * deadzonePercent) / 100;
     // Check if the controller is outside a circular dead zone.
@@ -153,7 +141,7 @@ void Xbox360Controller::NormalizeAxis(int16_t x,
         magnitude -= real_deadzone;
         // Normalize the magnitude with respect to its expected range giving a
         // magnitude value of 0.0 to 1.0
-        //ratio = (currentValue / maxValue) / realValue
+        // ratio = (currentValue / maxValue) / realValue
         float ratio = (magnitude / (32767 - real_deadzone)) / real_magnitude;
 
         *x_out = x_val * ratio;
@@ -166,7 +154,7 @@ void Xbox360Controller::NormalizeAxis(int16_t x,
     }
 }
 
-//Pass by value should hopefully be optimized away by RVO
+// Pass by value should hopefully be optimized away by RVO
 NormalizedButtonData Xbox360Controller::GetNormalizedButtonData()
 {
     NormalizedButtonData normalData{};
@@ -212,16 +200,16 @@ NormalizedButtonData Xbox360Controller::GetNormalizedButtonData()
     return normalData;
 }
 
-Result Xbox360Controller::SetRumble(uint8_t strong_magnitude, uint8_t weak_magnitude)
+ams::Result Xbox360Controller::SetRumble(uint8_t strong_magnitude, uint8_t weak_magnitude)
 {
     uint8_t rumbleData[]{0x00, sizeof(Xbox360RumbleData), 0x00, strong_magnitude, weak_magnitude, 0x00, 0x00, 0x00};
-    return m_outPipe->Write(rumbleData, sizeof(rumbleData));
+    R_RETURN(m_outPipe->Write(rumbleData, sizeof(rumbleData)));
 }
 
-Result Xbox360Controller::SetLED(Xbox360LEDValue value)
+ams::Result Xbox360Controller::SetLED(Xbox360LEDValue value)
 {
     uint8_t ledPacket[]{0x01, 0x03, static_cast<uint8_t>(value)};
-    return m_outPipe->Write(ledPacket, sizeof(ledPacket));
+    R_RETURN(m_outPipe->Write(ledPacket, sizeof(ledPacket)));
 }
 
 void Xbox360Controller::LoadConfig(const ControllerConfig *config)

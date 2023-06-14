@@ -17,20 +17,19 @@ SwitchUSBEndpoint::~SwitchUSBEndpoint()
     }
 }
 
-Result SwitchUSBEndpoint::Open(int maxPacketSize)
+ams::Result SwitchUSBEndpoint::Open(int maxPacketSize)
 {
     maxPacketSize = maxPacketSize != 0 ? maxPacketSize : m_descriptor->wMaxPacketSize;
 
-    Result rc = usbHsIfOpenUsbEp(m_ifSession, &m_epSession, 1, maxPacketSize, m_descriptor);
-    if (R_FAILED(rc))
-        return 73011;
+    R_TRY(usbHsIfOpenUsbEp(m_ifSession, &m_epSession, 1, maxPacketSize, m_descriptor));
 
     if (m_buffer != nullptr)
         free(m_buffer);
     m_buffer = memalign(0x1000, maxPacketSize);
     if (m_buffer == nullptr)
         return -1;
-    return rc;
+
+    R_SUCCEED();
 }
 
 void SwitchUSBEndpoint::Close()
@@ -38,7 +37,7 @@ void SwitchUSBEndpoint::Close()
     usbHsEpClose(&m_epSession);
 }
 
-Result SwitchUSBEndpoint::Write(const void *inBuffer, size_t bufferSize)
+ams::Result SwitchUSBEndpoint::Write(const void *inBuffer, size_t bufferSize)
 {
     if (m_buffer == nullptr)
         return -1;
@@ -46,29 +45,25 @@ Result SwitchUSBEndpoint::Write(const void *inBuffer, size_t bufferSize)
 
     memcpy(m_buffer, inBuffer, bufferSize);
 
-    Result rc = usbHsEpPostBuffer(&m_epSession, m_buffer, bufferSize, &transferredSize);
+    R_TRY(usbHsEpPostBuffer(&m_epSession, m_buffer, bufferSize, &transferredSize));
 
-    if (R_SUCCEEDED(rc))
-    {
-        svcSleepThread(m_descriptor->bInterval * 1e+6L);
-    }
-    return rc;
+    svcSleepThread(m_descriptor->bInterval * 1e+6L);
+
+    R_SUCCEED();
 }
 
-Result SwitchUSBEndpoint::Read(void *outBuffer, size_t bufferSize)
+ams::Result SwitchUSBEndpoint::Read(void *outBuffer, size_t bufferSize)
 {
     if (m_buffer == nullptr)
         return -1;
 
     u32 transferredSize;
 
-    Result rc = usbHsEpPostBuffer(&m_epSession, m_buffer, bufferSize, &transferredSize);
+    R_TRY(usbHsEpPostBuffer(&m_epSession, m_buffer, bufferSize, &transferredSize));
 
-    if (R_SUCCEEDED(rc))
-    {
-        memcpy(outBuffer, m_buffer, transferredSize);
-    }
-    return rc;
+    memcpy(outBuffer, m_buffer, transferredSize);
+
+    R_SUCCEED();
 }
 
 IUSBEndpoint::Direction SwitchUSBEndpoint::GetDirection()

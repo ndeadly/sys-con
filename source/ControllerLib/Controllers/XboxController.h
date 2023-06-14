@@ -2,8 +2,8 @@
 
 #include "IController.h"
 
-//References used:
-//http://euc.jp/periphs/xbox-controller.ja.html
+// References used:
+// http://euc.jp/periphs/xbox-controller.ja.html
 
 struct XboxButtonData
 {
@@ -22,7 +22,7 @@ struct XboxButtonData
 
     uint8_t reserved;
 
-    //These are analog
+    // These are analog
     uint8_t a;
     uint8_t b;
     uint8_t x;
@@ -62,13 +62,13 @@ public:
     XboxController(std::unique_ptr<IUSBDevice> &&interface);
     virtual ~XboxController() override;
 
-    virtual Result Initialize() override;
+    virtual ams::Result Initialize() override;
     virtual void Exit() override;
 
-    Result OpenInterfaces();
+    ams::Result OpenInterfaces();
     void CloseInterfaces();
 
-    virtual Result GetInput() override;
+    virtual ams::Result GetInput() override;
 
     virtual NormalizedButtonData GetNormalizedButtonData() override;
 
@@ -79,7 +79,7 @@ public:
     float NormalizeTrigger(uint8_t deadzonePercent, uint8_t value);
     void NormalizeAxis(int16_t x, int16_t y, uint8_t deadzonePercent, float *x_out, float *y_out);
 
-    Result SetRumble(uint8_t strong_magnitude, uint8_t weak_magnitude);
+    ams::Result SetRumble(uint8_t strong_magnitude, uint8_t weak_magnitude);
 
     static void LoadConfig(const ControllerConfig *config);
     virtual ControllerConfig *GetConfig() override;

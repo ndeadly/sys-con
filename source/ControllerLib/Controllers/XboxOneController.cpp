@@ -1,24 +1,24 @@
 #include "Controllers/XboxOneController.h"
 #include <cmath>
-//#include "../../Sysmodule/source/log.h"
+// #include "../../Sysmodule/source/log.h"
 
 static ControllerConfig _xboxoneControllerConfig{};
 
 #define TRIGGER_MAXVALUE 1023
 
-//Following input packets were referenced from https://github.com/torvalds/linux/blob/master/drivers/input/joystick/xpad.c
-// and https://github.com/360Controller/360Controller/blob/master/360Controller/_60Controller.cpp
+// Following input packets were referenced from https://github.com/torvalds/linux/blob/master/drivers/input/joystick/xpad.c
+//  and https://github.com/360Controller/360Controller/blob/master/360Controller/_60Controller.cpp
 
-//Enables LED on the PowerA controller but disables input?
+// Enables LED on the PowerA controller but disables input?
 static constexpr uint8_t xboxone_powerA_ledOn[] = {
     0x04, 0x20, 0x01, 0x00};
 
-//does something maybe
+// does something maybe
 static constexpr uint8_t xboxone_test_init1[] = {
     0x01, 0x20, 0x01, 0x09, 0x00, 0x04, 0x20, 0x3a,
     0x00, 0x00, 0x00, 0x98, 0x00};
 
-//required for all xbox one controllers
+// required for all xbox one controllers
 static constexpr uint8_t xboxone_fw2015_init[] = {
     0x05, 0x20, 0x00, 0x01, 0x00};
 
@@ -68,41 +68,31 @@ XboxOneController::XboxOneController(std::unique_ptr<IUSBDevice> &&interface)
 
 XboxOneController::~XboxOneController()
 {
-    //Exit();
+    // Exit();
 }
 
-Result XboxOneController::Initialize()
+ams::Result XboxOneController::Initialize()
 {
-    Result rc;
+    R_TRY(OpenInterfaces());
+    R_TRY(SendInitBytes());
 
-    rc = OpenInterfaces();
-    if (R_FAILED(rc))
-        return rc;
-
-    rc = SendInitBytes();
-    if (R_FAILED(rc))
-        return rc;
-    return rc;
+    R_SUCCEED();
 }
+
 void XboxOneController::Exit()
 {
     CloseInterfaces();
 }
 
-Result XboxOneController::OpenInterfaces()
+ams::Result XboxOneController::OpenInterfaces()
 {
-    Result rc;
-    rc = m_device->Open();
-    if (R_FAILED(rc))
-        return rc;
+    R_TRY(m_device->Open());
 
-    //This will open each interface and try to acquire Xbox One controller's in and out endpoints, if it hasn't already
+    // This will open each interface and try to acquire Xbox One controller's in and out endpoints, if it hasn't already
     std::vector<std::unique_ptr<IUSBInterface>> &interfaces = m_device->GetInterfaces();
     for (auto &&interface : interfaces)
     {
-        rc = interface->Open();
-        if (R_FAILED(rc))
-            return rc;
+        R_TRY(interface->Open());
 
         if (interface->GetDescriptor()->bInterfaceProtocol != 208)
             continue;
@@ -117,9 +107,7 @@ Result XboxOneController::OpenInterfaces()
                 IUSBEndpoint *inEndpoint = interface->GetEndpoint(IUSBEndpoint::USB_ENDPOINT_IN, i);
                 if (inEndpoint)
                 {
-                    rc = inEndpoint->Open();
-                    if (R_FAILED(rc))
-                        return 5555;
+                    R_TRY(inEndpoint->Open());
 
                     m_inPipe = inEndpoint;
                     break;
@@ -134,9 +122,7 @@ Result XboxOneController::OpenInterfaces()
                 IUSBEndpoint *outEndpoint = interface->GetEndpoint(IUSBEndpoint::USB_ENDPOINT_OUT, i);
                 if (outEndpoint)
                 {
-                    rc = outEndpoint->Open();
-                    if (R_FAILED(rc))
-                        return 6666;
+                    R_TRY(outEndpoint->Open());
 
                     m_outPipe = outEndpoint;
                     break;
@@ -146,50 +132,45 @@ Result XboxOneController::OpenInterfaces()
     }
 
     if (!m_inPipe || !m_outPipe)
-        return 69;
+        R_RETURN(69);
 
-    return rc;
+    R_SUCCEED();
 }
 void XboxOneController::CloseInterfaces()
 {
-    //m_device->Reset();
+    // m_device->Reset();
     m_device->Close();
 }
 
-Result XboxOneController::GetInput()
+ams::Result XboxOneController::GetInput()
 {
     uint8_t input_bytes[64];
 
-    Result rc = m_inPipe->Read(input_bytes, sizeof(input_bytes));
-    if (R_FAILED(rc))
-        return rc;
+    R_TRY(m_inPipe->Read(input_bytes, sizeof(input_bytes)));
 
     uint8_t type = input_bytes[0];
 
-    if (type == XBONEINPUT_BUTTON) //Button data
+    if (type == XBONEINPUT_BUTTON) // Button data
     {
         m_buttonData = *reinterpret_cast<XboxOneButtonData *>(input_bytes);
     }
-    else if (type == XBONEINPUT_GUIDEBUTTON) //Guide button Result
+    else if (type == XBONEINPUT_GUIDEBUTTON) // Guide button Result
     {
         m_GuidePressed = input_bytes[4];
 
-        //Xbox one S needs to be sent an ack report for guide buttons
-        //TODO: needs testing
+        // Xbox one S needs to be sent an ack report for guide buttons
+        // TODO: needs testing
         if (input_bytes[1] == 0x30)
         {
-            rc = WriteAckGuideReport(input_bytes[2]);
-            if (R_FAILED(rc))
-                return rc;
+            R_TRY(WriteAckGuideReport(input_bytes[2]));
         }
     }
 
-    return rc;
+    R_SUCCEED();
 }
 
-Result XboxOneController::SendInitBytes()
+ams::Result XboxOneController::SendInitBytes()
 {
-    Result rc;
     uint16_t vendor = m_device->GetVendor();
     uint16_t product = m_device->GetProduct();
     for (int i = 0; i != (sizeof(init_packets) / sizeof(VendorProductPacket)); ++i)
@@ -199,17 +180,16 @@ Result XboxOneController::SendInitBytes()
         if (init_packets[i].ProductID != 0 && init_packets[i].ProductID != product)
             continue;
 
-        rc = m_outPipe->Write(init_packets[i].Packet, init_packets[i].Length);
-        if (R_FAILED(rc))
-            break;
+        R_TRY(m_outPipe->Write(init_packets[i].Packet, init_packets[i].Length));
     }
-    return rc;
+
+    R_SUCCEED();
 }
 
 float XboxOneController::NormalizeTrigger(uint8_t deadzonePercent, uint16_t value)
 {
     uint16_t deadzone = (TRIGGER_MAXVALUE * deadzonePercent) / 100;
-    //If the given value is below the trigger zone, save the calc and return 0, otherwise adjust the value to the deadzone
+    // If the given value is below the trigger zone, save the calc and return 0, otherwise adjust the value to the deadzone
     return value < deadzone
                ? 0
                : static_cast<float>(value - deadzone) / (TRIGGER_MAXVALUE - deadzone);
@@ -224,8 +204,8 @@ void XboxOneController::NormalizeAxis(int16_t x,
     float x_val = x;
     float y_val = y;
     // Determine how far the stick is pushed.
-    //This will never exceed 32767 because if the stick is
-    //horizontally maxed in one direction, vertically it must be neutral(0) and vice versa
+    // This will never exceed 32767 because if the stick is
+    // horizontally maxed in one direction, vertically it must be neutral(0) and vice versa
     float real_magnitude = std::sqrt(x_val * x_val + y_val * y_val);
     float real_deadzone = (32767 * deadzonePercent) / 100;
     // Check if the controller is outside a circular dead zone.
@@ -237,7 +217,7 @@ void XboxOneController::NormalizeAxis(int16_t x,
         magnitude -= real_deadzone;
         // Normalize the magnitude with respect to its expected range giving a
         // magnitude value of 0.0 to 1.0
-        //ratio = (currentValue / maxValue) / realValue
+        // ratio = (currentValue / maxValue) / realValue
         float ratio = (magnitude / (32767 - real_deadzone)) / real_magnitude;
 
         *x_out = x_val * ratio;
@@ -250,7 +230,7 @@ void XboxOneController::NormalizeAxis(int16_t x,
     }
 }
 
-//Pass by value should hopefully be optimized away by RVO
+// Pass by value should hopefully be optimized away by RVO
 NormalizedButtonData XboxOneController::GetNormalizedButtonData()
 {
     NormalizedButtonData normalData{};
@@ -296,19 +276,16 @@ NormalizedButtonData XboxOneController::GetNormalizedButtonData()
     return normalData;
 }
 
-Result XboxOneController::WriteAckGuideReport(uint8_t sequence)
+ams::Result XboxOneController::WriteAckGuideReport(uint8_t sequence)
 {
-    Result rc;
     uint8_t report[] = {
         0x01, 0x20,
         sequence,
         0x09, 0x00, 0x07, 0x20, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00};
-
-    rc = m_outPipe->Write(report, sizeof(report));
-    return rc;
+    R_RETURN(m_outPipe->Write(report, sizeof(report)));
 }
 
-Result XboxOneController::SetRumble(uint8_t strong_magnitude, uint8_t weak_magnitude)
+ams::Result XboxOneController::SetRumble(uint8_t strong_magnitude, uint8_t weak_magnitude)
 {
     const uint8_t rumble_data[]{
         0x09, 0x00, 0x00,
@@ -316,7 +293,7 @@ Result XboxOneController::SetRumble(uint8_t strong_magnitude, uint8_t weak_magni
         strong_magnitude,
         weak_magnitude,
         0xff, 0x00, 0x00};
-    return m_outPipe->Write(rumble_data, sizeof(rumble_data));
+    R_RETURN(m_outPipe->Write(rumble_data, sizeof(rumble_data)));
 }
 
 void XboxOneController::LoadConfig(const ControllerConfig *config)

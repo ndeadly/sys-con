@@ -1,6 +1,8 @@
 #include "Controllers/Dualshock4Controller.h"
 #include <cmath>
 
+#include "../Sysmodule/source/log.h"
+
 static ControllerConfig _dualshock4ControllerConfig{};
 static RGBAColor _ledValue{0x00, 0x00, 0x40};
 
@@ -11,52 +13,44 @@ Dualshock4Controller::Dualshock4Controller(std::unique_ptr<IUSBDevice> &&interfa
 
 Dualshock4Controller::~Dualshock4Controller()
 {
-    //Exit();
+    // Exit();
 }
 
-Result Dualshock4Controller::SendInitBytes()
+ams::Result Dualshock4Controller::SendInitBytes()
 {
     const uint8_t init_bytes[32] = {
         0x05, 0x07, 0x00, 0x00,
-        0x00, 0x00,                            //initial strong and weak rumble
-        _ledValue.r, _ledValue.g, _ledValue.b, //LED color
+        0x00, 0x00,                            // initial strong and weak rumble
+        _ledValue.r, _ledValue.g, _ledValue.b, // LED color
         0x00, 0x00};
 
-    return m_outPipe->Write(init_bytes, sizeof(init_bytes));
+    R_RETURN(m_outPipe->Write(init_bytes, sizeof(init_bytes)));
 }
 
-Result Dualshock4Controller::Initialize()
+ams::Result Dualshock4Controller::Initialize()
 {
-    Result rc;
+    R_TRY(OpenInterfaces());
+    R_TRY(SendInitBytes());
 
-    rc = OpenInterfaces();
-    if (R_FAILED(rc))
-        return rc;
-
-    rc = SendInitBytes();
-    if (R_FAILED(rc))
-        return rc;
-    return rc;
+    R_SUCCEED();
 }
+
 void Dualshock4Controller::Exit()
 {
     CloseInterfaces();
 }
 
-Result Dualshock4Controller::OpenInterfaces()
+ams::Result Dualshock4Controller::OpenInterfaces()
 {
-    Result rc;
-    rc = m_device->Open();
-    if (R_FAILED(rc))
-        return rc;
+    WriteToLog("Opening device...");
+    R_TRY(m_device->Open());
 
-    //Open each interface, send it a setup packet and get the endpoints if it succeeds
+    // Open each interface, send it a setup packet and get the endpoints if it succeeds
     std::vector<std::unique_ptr<IUSBInterface>> &interfaces = m_device->GetInterfaces();
     for (auto &&interface : interfaces)
     {
-        rc = interface->Open();
-        if (R_FAILED(rc))
-            return rc;
+        WriteToLog("Opening interface...");
+        R_TRY(interface->Open());
 
         if (interface->GetDescriptor()->bInterfaceClass != 3)
             continue;
@@ -74,9 +68,8 @@ Result Dualshock4Controller::OpenInterfaces()
                 IUSBEndpoint *inEndpoint = interface->GetEndpoint(IUSBEndpoint::USB_ENDPOINT_IN, i);
                 if (inEndpoint)
                 {
-                    rc = inEndpoint->Open();
-                    if (R_FAILED(rc))
-                        return 61;
+                    WriteToLog("Opening input endpoint...");
+                    R_TRY(inEndpoint->Open());
 
                     m_inPipe = inEndpoint;
                     break;
@@ -91,9 +84,8 @@ Result Dualshock4Controller::OpenInterfaces()
                 IUSBEndpoint *outEndpoint = interface->GetEndpoint(IUSBEndpoint::USB_ENDPOINT_OUT, i);
                 if (outEndpoint)
                 {
-                    rc = outEndpoint->Open();
-                    if (R_FAILED(rc))
-                        return 62;
+                    WriteToLog("Opening output endpoint...");
+                    R_TRY(outEndpoint->Open());
 
                     m_outPipe = outEndpoint;
                     break;
@@ -103,36 +95,37 @@ Result Dualshock4Controller::OpenInterfaces()
     }
 
     if (!m_inPipe || !m_outPipe)
-        return 69;
+        R_RETURN(69);
 
-    return rc;
+    WriteToLog("Success");
+    R_SUCCEED();
 }
+
 void Dualshock4Controller::CloseInterfaces()
 {
-    //m_device->Reset();
+    // m_device->Reset();
     m_device->Close();
 }
 
-Result Dualshock4Controller::GetInput()
+ams::Result Dualshock4Controller::GetInput()
 {
 
     uint8_t input_bytes[64];
 
-    Result rc = m_inPipe->Read(input_bytes, sizeof(input_bytes));
-    if (R_FAILED(rc))
-        return rc;
+    R_TRY(m_inPipe->Read(input_bytes, sizeof(input_bytes)));
 
     if (input_bytes[0] == 0x01)
     {
         m_buttonData = *reinterpret_cast<Dualshock4USBButtonData *>(input_bytes);
     }
-    return rc;
+
+    R_SUCCEED();
 }
 
 float Dualshock4Controller::NormalizeTrigger(uint8_t deadzonePercent, uint8_t value)
 {
     uint8_t deadzone = (UINT8_MAX * deadzonePercent) / 100;
-    //If the given value is below the trigger zone, save the calc and return 0, otherwise adjust the value to the deadzone
+    // If the given value is below the trigger zone, save the calc and return 0, otherwise adjust the value to the deadzone
     return value < deadzone
                ? 0
                : static_cast<float>(value - deadzone) / (UINT8_MAX - deadzone);
@@ -147,8 +140,8 @@ void Dualshock4Controller::NormalizeAxis(uint8_t x,
     float x_val = x - 127.0f;
     float y_val = 127.0f - y;
     // Determine how far the stick is pushed.
-    //This will never exceed 32767 because if the stick is
-    //horizontally maxed in one direction, vertically it must be neutral(0) and vice versa
+    // This will never exceed 32767 because if the stick is
+    // horizontally maxed in one direction, vertically it must be neutral(0) and vice versa
     float real_magnitude = std::sqrt(x_val * x_val + y_val * y_val);
     float real_deadzone = (127 * deadzonePercent) / 100;
     // Check if the controller is outside a circular dead zone.
@@ -160,7 +153,7 @@ void Dualshock4Controller::NormalizeAxis(uint8_t x,
         magnitude -= real_deadzone;
         // Normalize the magnitude with respect to its expected range giving a
         // magnitude value of 0.0 to 1.0
-        //ratio = (currentValue / maxValue) / realValue
+        // ratio = (currentValue / maxValue) / realValue
         float ratio = (magnitude / (127 - real_deadzone)) / real_magnitude;
         *x_out = x_val * ratio;
         *y_out = y_val * ratio;
@@ -172,7 +165,7 @@ void Dualshock4Controller::NormalizeAxis(uint8_t x,
     }
 }
 
-//Pass by value should hopefully be optimized away by RVO
+// Pass by value should hopefully be optimized away by RVO
 NormalizedButtonData Dualshock4Controller::GetNormalizedButtonData()
 {
     NormalizedButtonData normalData{};
@@ -220,10 +213,13 @@ NormalizedButtonData Dualshock4Controller::GetNormalizedButtonData()
     return normalData;
 }
 
-Result Dualshock4Controller::SetRumble(uint8_t strong_magnitude, uint8_t weak_magnitude)
+ams::Result Dualshock4Controller::SetRumble(uint8_t strong_magnitude, uint8_t weak_magnitude)
 {
-    //Not implemented yet
-    return 9;
+    AMS_UNUSED(strong_magnitude);
+    AMS_UNUSED(weak_magnitude);
+
+    // Not implemented yet
+    R_RETURN(9);
 }
 
 void Dualshock4Controller::LoadConfig(const ControllerConfig *config, RGBAColor ledValue)

@@ -12,37 +12,32 @@ SwitchUSBInterface::~SwitchUSBInterface()
 {
 }
 
-Result SwitchUSBInterface::Open()
+ams::Result SwitchUSBInterface::Open()
 {
     UsbHsClientIfSession temp;
-    Result rc = usbHsAcquireUsbIf(&temp, &m_interface);
-    if (R_FAILED(rc))
-        return rc;
+    R_TRY(usbHsAcquireUsbIf(&temp, &m_interface));
 
     m_session = temp;
 
-    if (R_SUCCEEDED(rc))
+    for (int i = 0; i != 15; ++i)
     {
-
-        for (int i = 0; i != 15; ++i)
+        usb_endpoint_descriptor &epdesc = m_session.inf.inf.input_endpoint_descs[i];
+        if (epdesc.bLength != 0)
         {
-            usb_endpoint_descriptor &epdesc = m_session.inf.inf.input_endpoint_descs[i];
-            if (epdesc.bLength != 0)
-            {
-                m_inEndpoints[i] = std::make_unique<SwitchUSBEndpoint>(m_session, epdesc);
-            }
-        }
-
-        for (int i = 0; i != 15; ++i)
-        {
-            usb_endpoint_descriptor &epdesc = m_session.inf.inf.output_endpoint_descs[i];
-            if (epdesc.bLength != 0)
-            {
-                m_outEndpoints[i] = std::make_unique<SwitchUSBEndpoint>(m_session, epdesc);
-            }
+            m_inEndpoints[i] = std::make_unique<SwitchUSBEndpoint>(m_session, epdesc);
         }
     }
-    return rc;
+
+    for (int i = 0; i != 15; ++i)
+    {
+        usb_endpoint_descriptor &epdesc = m_session.inf.inf.output_endpoint_descs[i];
+        if (epdesc.bLength != 0)
+        {
+            m_outEndpoints[i] = std::make_unique<SwitchUSBEndpoint>(m_session, epdesc);
+        }
+    }
+
+    R_SUCCEED();
 }
 void SwitchUSBInterface::Close()
 {
@@ -63,9 +58,11 @@ void SwitchUSBInterface::Close()
     usbHsIfClose(&m_session);
 }
 
-Result SwitchUSBInterface::ControlTransfer(u8 bmRequestType, u8 bmRequest, u16 wValue, u16 wIndex, u16 wLength, void *buffer)
+ams::Result SwitchUSBInterface::ControlTransfer(u8 bmRequestType, u8 bmRequest, u16 wValue, u16 wIndex, u16 wLength, void *buffer)
 {
     void *temp_buffer = memalign(0x1000, wLength);
+    ON_SCOPE_EXIT { free(temp_buffer); };
+
     if (temp_buffer == nullptr)
         return -1;
 
@@ -73,19 +70,18 @@ Result SwitchUSBInterface::ControlTransfer(u8 bmRequestType, u8 bmRequest, u16 w
 
     memcpy(temp_buffer, buffer, wLength);
 
-    Result rc = usbHsIfCtrlXfer(&m_session, bmRequestType, bmRequest, wValue, wIndex, wLength, temp_buffer, &transferredSize);
+    R_TRY(usbHsIfCtrlXfer(&m_session, bmRequestType, bmRequest, wValue, wIndex, wLength, temp_buffer, &transferredSize));
 
-    if (R_SUCCEEDED(rc))
-    {
-        memcpy(buffer, temp_buffer, transferredSize);
-    }
-    free(temp_buffer);
-    return rc;
+    memcpy(buffer, temp_buffer, transferredSize);
+
+    R_SUCCEED();
 }
 
-Result SwitchUSBInterface::ControlTransfer(u8 bmRequestType, u8 bmRequest, u16 wValue, u16 wIndex, u16 wLength, const void *buffer)
+ams::Result SwitchUSBInterface::ControlTransfer(u8 bmRequestType, u8 bmRequest, u16 wValue, u16 wIndex, u16 wLength, const void *buffer)
 {
     void *temp_buffer = memalign(0x1000, wLength);
+    ON_SCOPE_EXIT { free(temp_buffer); };
+
     if (temp_buffer == nullptr)
         return -1;
 
@@ -93,9 +89,7 @@ Result SwitchUSBInterface::ControlTransfer(u8 bmRequestType, u8 bmRequest, u16 w
 
     memcpy(temp_buffer, buffer, wLength);
 
-    Result rc = usbHsIfCtrlXfer(&m_session, bmRequestType, bmRequest, wValue, wIndex, wLength, temp_buffer, &transferredSize);
-    free(temp_buffer);
-    return rc;
+    R_RETURN(usbHsIfCtrlXfer(&m_session, bmRequestType, bmRequest, wValue, wIndex, wLength, temp_buffer, &transferredSize));
 }
 
 IUSBEndpoint *SwitchUSBInterface::GetEndpoint(IUSBEndpoint::Direction direction, uint8_t index)
@@ -106,8 +100,7 @@ IUSBEndpoint *SwitchUSBInterface::GetEndpoint(IUSBEndpoint::Direction direction,
         return m_outEndpoints[index].get();
 }
 
-Result SwitchUSBInterface::Reset()
+ams::Result SwitchUSBInterface::Reset()
 {
-    usbHsIfResetDevice(&m_session);
-    return 0;
+    R_RETURN(usbHsIfResetDevice(&m_session));
 }

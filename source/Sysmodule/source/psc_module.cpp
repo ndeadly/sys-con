@@ -13,15 +13,15 @@ namespace syscon::psc
         Waiter pscModuleWaiter;
         const uint32_t dependencies[] = {PscPmModuleId_Fs};
 
-        //Thread to check for psc:pm state change (console waking up/going to sleep)
-        void PscThreadFunc(void *arg);
+        // Thread to check for psc:pm state change (console waking up/going to sleep)
+        void PscThreadFunc(void *);
 
         alignas(ams::os::ThreadStackAlignment) u8 psc_thread_stack[0x1000];
         Thread g_psc_thread;
 
         bool is_psc_thread_running = false;
 
-        void PscThreadFunc(void *arg)
+        void PscThreadFunc(void *)
         {
             do
             {
@@ -35,11 +35,11 @@ namespace syscon::psc
                         {
                             case PscPmState_Awake:
                             case PscPmState_ReadyAwaken:
-                                //usb::CreateUsbEvents();
+                                // usb::CreateUsbEvents();
                                 break;
                             case PscPmState_ReadySleep:
                             case PscPmState_ReadyShutdown:
-                                //usb::DestroyUsbEvents();
+                                // usb::DestroyUsbEvents();
                                 controllers::Reset();
                                 break;
                             default:
@@ -51,14 +51,16 @@ namespace syscon::psc
             } while (is_psc_thread_running);
         }
     } // namespace
-    Result Initialize()
+
+    ams::Result Initialize()
     {
         R_TRY(pscmGetPmModule(&pscModule, PscPmModuleId(126), dependencies, sizeof(dependencies) / sizeof(uint32_t), true));
         pscModuleWaiter = waiterForEvent(&pscModule.event);
         is_psc_thread_running = true;
-        R_ABORT_UNLESS(threadCreate(&g_psc_thread, &PscThreadFunc, nullptr, psc_thread_stack, sizeof(psc_thread_stack), 0x2C, -2));
-        R_ABORT_UNLESS(threadStart(&g_psc_thread));
-        return 0;
+        R_TRY(threadCreate(&g_psc_thread, &PscThreadFunc, nullptr, psc_thread_stack, sizeof(psc_thread_stack), 0x2C, -2));
+        R_TRY(threadStart(&g_psc_thread));
+
+        R_SUCCEED();
     }
 
     void Exit()

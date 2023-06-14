@@ -1,8 +1,9 @@
 #pragma once
-#include "switch.h"
+#include <switch.h>
+#include <stratosphere.hpp>
 
 namespace syscon::psc
 {
-    Result Initialize();
+    ams::Result Initialize();
     void Exit();
 };

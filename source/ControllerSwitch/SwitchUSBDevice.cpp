@@ -16,12 +16,12 @@ SwitchUSBDevice::SwitchUSBDevice()
 {
 }
 
-Result SwitchUSBDevice::Open()
+ams::Result SwitchUSBDevice::Open()
 {
-    if (m_interfaces.size() != 0)
-        return 0;
-    else
-        return 51;
+    if (m_interfaces.size() == 0)
+        R_RETURN(51);
+
+    R_SUCCEED();
 }
 
 void SwitchUSBDevice::Close()
@@ -34,9 +34,9 @@ void SwitchUSBDevice::Close()
 
 void SwitchUSBDevice::Reset()
 {
-    //I'm expecting all interfaces to point to one device decsriptor
-    // as such resetting on any of them should do the trick
-    //TODO: needs testing
+    // I'm expecting all interfaces to point to one device decsriptor
+    //  as such resetting on any of them should do the trick
+    // TODO: needs testing
     if (m_interfaces.size() != 0)
         m_interfaces[0]->Reset();
 }
