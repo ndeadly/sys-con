@@ -1,17 +1,14 @@
-COMPONENTS := libstratosphere AppletCompanion Sysmodule
+COMPONENTS := AppletCompanion Sysmodule
 TOPTARGETS := all clean mrproper
 
 .PHONY: $(TOPTARGETS) $(COMPONENTS)
 
 all: $(COMPONENTS)
 
-libstratosphere:
-	$(MAKE) -C $@
-
 AppletCompanion:
 	$(MAKE) -C $@
 
-Sysmodule: libstratosphere
+Sysmodule:
 	$(MAKE) -C $@
 
 clean:
@@ -19,4 +16,4 @@ clean:
 	$(MAKE) -C Sysmodule clean
 	
 mrproper: clean
-	$(MAKE) -C libstratosphere clean
+	$(MAKE) -C clean
