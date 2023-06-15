@@ -43,8 +43,78 @@ namespace syscon::usb
         Event g_usbSonyEvent{};
         UsbHsInterface interfaces[MaxUsbHsInterfacesSize];
 
+        HardwareId ps3_hardware_ids[] =
+            {
+                {0x054c, 0x0268}, // DS3
+                {0x0f0d, 0x0022}, // Hori Co., Ltd
+                {0x0f0d, 0x0088}, // hori mini Arcade Stick
+                {0x1c1a, 0x0100}, // datel Arcade Stick
+                {0x0079, 0x181a}, // venom
+                {0x1532, 0x0402}, // Razer Panthera
+                {0x0f0d, 0x0085}, // Hori Fighting Commander v4
+        };
+
+        // hori fighting command in pc mode (0x0f0d, 0x0086)
+
+        // got many from real hardware. And a lot from here:
+        // https://github.com/Raphfriend/USB2DB15/blob/master/RFUSB_to_DB15/drivers.h#L39
+        HardwareId ps4_hardware_ids[] =
+            {
+                {0x054c, 0x05c4}, // DS4 v1
+                {0x054c, 0x09cc}, // DS4 v2
+                {0x054c, 0x0ba0}, // PS4 wireless Adapter
+                {0x0c12, 0x0c30}, // Brooks Universal Fighting Board (PS4 mode)
+                {0x0c12, 0x0ef1}, // Brooks PS2 -> PS4 Adapter
+                {0x0c12, 0x1cf2}, // Brooks PS3 -> PS4 Adapter
+                {0x0c12, 0x0e31}, // Brooks PS4 Audio Board
+                {0x0c12, 0x0ef7}, // Brooks tiny square PS4 Board
+                {0x0c12, 0x0ef8}, // Brooks Fighting Board
+                {0x0f0d, 0x0087}, // Hori Mini Arcade Stick
+                {0x0f0d, 0x0084}, // Hori Fighting Commander v4
+                {0x0f0d, 0x00ae}, // Hori RAP Pro N Hayabusa
+                {0x0f0d, 0x008a}, // HORI RAP V Hayabusa
+                {0x0f0d, 0x00ee}, // HORI ワイヤードコントローラライト for PS4-102
+                {0x0f0d, 0x006f}, // HORI RAP Pro VLX
+                {0x1f4f, 0x1002}, // Xrd PS4 Pad
+                {0x0079, 0x181b}, // Venom Arcade Stick
+                {0x1532, 0x0401}, // Razer Panthera
+                {0x1532, 0x1008}, // Razer Panthera EVO
+                {0x1532, 0x1004}, // Razer Raiju Ultimate
+                {0x2c22, 0x2000}, // Qanba Drone
+                {0x2c22, 0x2200}, // Qanba Crystal
+                {0x2c22, 0x2300}, // Qanba Obsidian
+                {0x0738, 0x8180}, // Mad Catz Fight Stick Alpha
+                {0x0738, 0x8481}, // Mad Catz SFV Arcade FightStick TE2+
+                {0x0738, 0x8384}, // Mad Catz SFV Arcade FightStick TES+
+                {0x0738, 0x8250}, // Mad Catz FightPad PRO PS4
+                {0x146b, 0x0d09}, // Nacon Daija
+        };
+
+        ControllerType IdentifyControllerType(const UsbHsInterface *iface)
+        {
+            WriteToLog("Checking controller -> vid: 0x%04x, pid: 0c%04x", iface->device_desc.idVendor, iface->device_desc.idProduct);
+
+            for (auto id : ps3_hardware_ids)
+            {
+                if ((id.vendor_id == iface->device_desc.idVendor) && (id.product_id == iface->device_desc.idProduct))
+                {
+                    return CONTROLLER_DUALSHOCK3;
+                }
+            }
+
+            for (auto id : ps4_hardware_ids)
+            {
+                if ((id.vendor_id == iface->device_desc.idVendor) && (id.product_id == iface->device_desc.idProduct))
+                {
+                    return CONTROLLER_DUALSHOCK4;
+                }
+            }
+
+            return CONTROLLER_UNDEFINED;
+        }
+
         s32 QueryInterfaces(u8 iclass, u8 isubclass, u8 iprotocol);
-        s32 QueryVendorProduct(uint16_t vendor_id, uint16_t product_id);
+        // s32 QueryVendorProduct(uint16_t vendor_id, uint16_t product_id);
 
         void UsbEventThreadFunc(void *)
         {
@@ -54,10 +124,42 @@ namespace syscon::usb
                 {
                     WriteToLog("Catch-all event went off");
 
+                    /*
+                    Result rc;
+
+                    UsbHsInterfaceFilter filter;
+                    filter.Flags = UsbHsInterfaceFilterFlags_bInterfaceClass | UsbHsInterfaceFilterFlags_bcdDevice_Min;
+                    filter.bInterfaceClass = USB_CLASS_HID;
+                    filter.bcdDevice_Min = 0;
+                    */
+
                     std::scoped_lock usbLock(usbMutex);
                     if (!controllers::IsAtControllerLimit())
                     {
-                        s32 total_entries;
+                        s32 total_entries = 0;
+
+                        /*
+                        rc = usbHsQueryAvailableInterfaces(&filter, interfaces, sizeof(interfaces), &total_entries);
+                        WriteToLog("%d interfaces found", total_entries);
+                        if (R_SUCCEEDED(rc) && (total_entries > 0)) {
+                            for (int i = 0; i < total_entries; ++i) {
+                                switch(IdentifyControllerType(&interfaces[i])) {
+                                    case CONTROLLER_DUALSHOCK3:
+                                        WriteToLog("Initializing Dualshock 3 controller: 0x%x", controllers::Insert(std::make_unique<Dualshock3Controller>(std::make_unique<SwitchUSBDevice>(&interfaces[i], 1))));
+                                        break;
+                                    case CONTROLLER_DUALSHOCK4:
+                                        WriteToLog("Initializing Dualshock 4 controller: 0x%x", controllers::Insert(std::make_unique<Dualshock4Controller>(std::make_unique<SwitchUSBDevice>(&interfaces[i], 1))));
+                                        break;
+                                    default:
+                                        break;
+                                }
+                            }
+                        }
+                        else {
+                            WriteToLog("rc: %d", rc);
+                        }
+                        */
+
                         if ((total_entries = QueryInterfaces(USB_CLASS_VENDOR_SPEC, 93, 1)) != 0)
                         {
                             ams::Result res = controllers::Insert(std::make_unique<Xbox360Controller>(std::make_unique<SwitchUSBDevice>(interfaces, total_entries)));
@@ -89,6 +191,13 @@ namespace syscon::usb
 
         void UsbSonyEventThreadFunc(void *)
         {
+            Result rc;
+
+            UsbHsInterfaceFilter filter;
+            filter.Flags = UsbHsInterfaceFilterFlags_bInterfaceClass | UsbHsInterfaceFilterFlags_bcdDevice_Min;
+            filter.bInterfaceClass = USB_CLASS_HID;
+            filter.bcdDevice_Min = 0;
+
             do
             {
                 if (R_SUCCEEDED(eventWait(&g_usbSonyEvent, UINT64_MAX)))
@@ -98,7 +207,33 @@ namespace syscon::usb
                     std::scoped_lock usbLock(usbMutex);
                     if (!controllers::IsAtControllerLimit())
                     {
-                        s32 total_entries;
+                        s32 total_entries = 0;
+                        rc = usbHsQueryAvailableInterfaces(&filter, interfaces, sizeof(interfaces), &total_entries);
+                        if (R_SUCCEEDED(rc) && (total_entries > 0))
+                        {
+                            for (int i = 0; i < total_entries; ++i)
+                            {
+                                switch (IdentifyControllerType(&interfaces[i]))
+                                {
+                                    case CONTROLLER_DUALSHOCK3:
+                                    {
+                                        ams::Result res = controllers::Insert(std::make_unique<Dualshock3Controller>(std::make_unique<SwitchUSBDevice>(&interfaces[i], 1)));
+                                        WriteToLog("Initializing Dualshock 3 controller: 0x%x", res.GetValue());
+                                    }
+                                    break;
+                                    case CONTROLLER_DUALSHOCK4:
+                                    {
+                                        ams::Result res = controllers::Insert(std::make_unique<Dualshock4Controller>(std::make_unique<SwitchUSBDevice>(&interfaces[i], 1)));
+                                        WriteToLog("Initializing Dualshock 4 controller: 0x%x", res.GetValue());
+                                    }
+                                    break;
+                                    default:
+                                        break;
+                                }
+                            }
+                        }
+
+                        /*
                         if ((QueryVendorProduct(VENDOR_SONY, PRODUCT_DUALSHOCK3) != 0) && (total_entries = QueryInterfaces(USB_CLASS_HID, 0, 0)) != 0)
                         {
                             ams::Result res = controllers::Insert(std::make_unique<Dualshock3Controller>(std::make_unique<SwitchUSBDevice>(interfaces, total_entries)));
@@ -109,6 +244,7 @@ namespace syscon::usb
                             ams::Result res = controllers::Insert(std::make_unique<Dualshock4Controller>(std::make_unique<SwitchUSBDevice>(interfaces, total_entries)));
                             WriteToLog("Initializing Dualshock 4 controller: 0x%x", res.GetValue());
                         }
+                                                */
                     }
                 }
             } while (is_usb_event_thread_running);
@@ -174,6 +310,7 @@ namespace syscon::usb
             return out_entries;
         }
 
+        /*
         s32 QueryVendorProduct(uint16_t vendor_id, uint16_t product_id)
         {
             UsbHsInterfaceFilter filter{
@@ -185,6 +322,7 @@ namespace syscon::usb
             usbHsQueryAvailableInterfaces(&filter, interfaces, sizeof(interfaces), &out_entries);
             return out_entries;
         }
+        */
 
         inline ams::Result CreateCatchAllAvailableEvent()
         {
@@ -198,11 +336,15 @@ namespace syscon::usb
         inline ams::Result CreateSonyAvailableEvent()
         {
             constexpr UsbHsInterfaceFilter filter{
-                .Flags = UsbHsInterfaceFilterFlags_idVendor,
-                .idVendor = VENDOR_SONY,
+                //.Flags = UsbHsInterfaceFilterFlags_idVendor,
+                //.idVendor = VENDOR_SONY,
+                .Flags = UsbHsInterfaceFilterFlags_bInterfaceClass | UsbHsInterfaceFilterFlags_bcdDevice_Min,
+                .bcdDevice_Min = 0,
+                .bInterfaceClass = USB_CLASS_HID,
             };
             R_RETURN(usbHsCreateInterfaceAvailableEvent(&g_usbSonyEvent, true, SonyEventIndex, &filter));
         }
+
     } // namespace
 
     ams::Result Initialize()
